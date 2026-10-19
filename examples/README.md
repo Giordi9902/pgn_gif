@@ -1,17 +1,17 @@
-# Partite d'esempio
+# Example games
 
-| File                  | Partita                                              | Mosse | Cosa mostra                       |
-|-----------------------|------------------------------------------------------|:-----:|-----------------------------------|
-| `opera.pgn`           | Morphy – Duca di Brunswick e Conte Isouard, 1858     | 17    | sacrifici e arrocco lungo         |
-| `immortale.pgn`       | Anderssen – Kieseritzky, Londra 1851                 | 23    | "L'Immortale": dà via entrambe le torri |
-| `sempreverde.pgn`     | Anderssen – Dufresne, Berlino 1852                   | 24    | "La Sempreverde"                  |
-| `mosse_speciali.pgn`  | partita costruita a tavolino                         | 8     | en passant, promozione con cattura, arrocco lungo e corto |
+| File                  | Game                                             | Moves | What it shows                     |
+|-----------------------|--------------------------------------------------|:-----:|-----------------------------------|
+| `opera_game.pgn`      | Morphy – Duke Karl / Count Isouard, Paris 1858   | 17    | sacrifices and queenside castling |
+| `immortal_game.pgn`   | Anderssen – Kieseritzky, London 1851             | 23    | "The Immortal Game": gives up both rooks |
+| `evergreen_game.pgn`  | Anderssen – Dufresne, Berlin 1852                | 24    | "The Evergreen Game"              |
+| `special_moves.pgn`   | composed position                                | 8     | en passant, promotion with capture, queenside and kingside castling |
 
-Per rigenerare le GIF in `assets/` (ognuna con un tema diverso):
+To regenerate the GIFs in `assets/` (each one with a different theme):
 
 ```bash
-pgn-gif examples/opera.pgn          -q l --tema marrone -o assets/opera.gif
-pgn-gif examples/immortale.pgn      -q l --tema verde   -o assets/immortale.gif
-pgn-gif examples/sempreverde.pgn    -q l --tema blu     -o assets/sempreverde.gif
-pgn-gif examples/mosse_speciali.pgn -q l --tema grigio  -o assets/mosse_speciali.gif
+pgn-gif examples/opera_game.pgn     -q l --theme brown -o assets/opera_game.gif
+pgn-gif examples/immortal_game.pgn  -q l --theme green -o assets/immortal_game.gif
+pgn-gif examples/evergreen_game.pgn -q l --theme blue  -o assets/evergreen_game.gif
+pgn-gif examples/special_moves.pgn  -q l --theme gray  -o assets/special_moves.gif
 ```

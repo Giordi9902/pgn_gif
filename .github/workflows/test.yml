@@ -17,12 +17,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Dipendenze di sistema per Manim
+      - name: System dependencies for Manim
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libcairo2-dev libpango1.0-dev ffmpeg fonts-dejavu-core
-      - name: Installazione
+      - name: Install
         run: pip install -e ".[dev]"
       - name: Test
         run: pytest -v

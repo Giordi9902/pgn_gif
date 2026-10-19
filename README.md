@@ -2,132 +2,132 @@
 
 # ♞ pgn_gif
 
-**Trasforma qualsiasi partita di scacchi in notazione PGN in una GIF animata.**
+**Turn any chess game in PGN notation into an animated GIF.**
 
 [![test](https://github.com/Giordi9902/pgn_gif/actions/workflows/test.yml/badge.svg)](https://github.com/Giordi9902/pgn_gif/actions/workflows/test.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Manim](https://img.shields.io/badge/animato%20con-Manim-ECE7E2)](https://www.manim.community/)
-[![Licenza: MIT](https://img.shields.io/badge/licenza-MIT-green.svg)](LICENSE)
+[![Manim](https://img.shields.io/badge/animated%20with-Manim-ECE7E2)](https://www.manim.community/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-<img src="assets/opera.gif" alt="La Partita dell'Opera di Morphy animata" width="720">
+<img src="assets/opera_game.gif" alt="Morphy's Opera Game, animated" width="720">
 
-*La Partita dell'Opera — Morphy contro il Duca di Brunswick e il Conte Isouard, Parigi 1858.*
+*The Opera Game — Paul Morphy vs. Duke Karl of Brunswick and Count Isouard, Paris 1858.*
 
 </div>
 
 ---
 
-## ✨ Caratteristiche
+## ✨ Features
 
-- **Un comando, una GIF**: `pgn-gif partita.pgn` e hai finito.
-- **Grafica curata**: pezzi vettoriali in stile Lichess, cornice con ombra, coordinate dentro le case, ultima mossa evidenziata e alone rosso sul re sotto scacco.
-- **4 temi**: `marrone`, `verde`, `blu`, `grigio`.
-- **Regole complete**: catture, en passant, arrocco corto e lungo, promozione (anche con cattura) — tutte animate.
-- **Pannello informativo**: giocatori (con in evidenza chi deve muovere), evento e anno, mossa in notazione SAN (`12. O-O-O`, `16... Nxb8`), barra di avanzamento e risultato finale.
-- **GIF leggere**: conversione ottimizzata con ffmpeg, **circa 12 volte più piccole** dell'output diretto di Manim.
-- **Validazione in anticipo**: un PGN con mosse illegali viene rifiutato con un messaggio chiaro, prima di perdere tempo a renderizzare.
-- **Tre modi di usarlo**: riga di comando, scena Manim, funzione Python.
-- **Testato**: 83 test, dalla geometria della scacchiera al rendering completo, su Python 3.10–3.13.
+- **One command, one GIF**: `pgn-gif game.pgn` and you're done.
+- **Polished look**: Lichess-style vector pieces, framed board with drop shadow, coordinates inside the squares, last-move highlight and a red glow on a king in check.
+- **4 themes**: `brown`, `green`, `blue`, `gray`.
+- **Every rule covered**: captures, en passant, kingside and queenside castling, promotion (with capture too), all animated.
+- **Info panel**: players (the side to move is highlighted), event and year, the move in SAN (`12. O-O-O`, `16... Nxb8`), a progress bar and the final result.
+- **Small GIFs**: optimized ffmpeg conversion, **about 12× smaller** than Manim's own GIF output.
+- **Fails fast**: a PGN with illegal moves is rejected with a clear message before any rendering starts.
+- **Three ways to use it**: command line, Manim scene, Python function.
+- **Tested**: 83 tests, from board geometry to full rendering, on Python 3.10–3.13.
 
-## 🚀 Avvio rapido
+## 🚀 Quick start
 
 ```bash
-# 1. Dipendenze di sistema di Manim (Debian/Ubuntu; per altri sistemi vedi docs/uso.md)
+# 1. Manim's system dependencies (Debian/Ubuntu; see docs/usage.md for other systems)
 sudo apt install libcairo2-dev libpango1.0-dev ffmpeg
 
-# 2. Installazione
+# 2. Install
 git clone https://github.com/Giordi9902/pgn_gif.git
 cd pgn_gif
 pip install .
 
-# 3. Via!
-pgn-gif examples/immortale.pgn
+# 3. Go!
+pgn-gif examples/immortal_game.pgn
 ```
 
-## 🎬 Galleria
+## 🎬 Gallery
 
 <table>
   <tr>
-    <td align="center"><img src="assets/immortale.gif" alt="L'Immortale" width="400"><br><b>L'Immortale</b><br>Anderssen – Kieseritzky, 1851<br><code>--tema verde</code></td>
-    <td align="center"><img src="assets/sempreverde.gif" alt="La Sempreverde" width="400"><br><b>La Sempreverde</b><br>Anderssen – Dufresne, 1852<br><code>--tema blu</code></td>
+    <td align="center"><img src="assets/immortal_game.gif" alt="The Immortal Game" width="400"><br><b>The Immortal Game</b><br>Anderssen – Kieseritzky, 1851<br><code>--theme green</code></td>
+    <td align="center"><img src="assets/evergreen_game.gif" alt="The Evergreen Game" width="400"><br><b>The Evergreen Game</b><br>Anderssen – Dufresne, 1852<br><code>--theme blue</code></td>
   </tr>
   <tr>
-    <td align="center" colspan="2"><img src="assets/mosse_speciali.gif" alt="Mosse speciali" width="400"><br><b>Mosse speciali</b><br>en passant · promozione con cattura · arrocco lungo e corto<br><code>--tema grigio</code></td>
+    <td align="center" colspan="2"><img src="assets/special_moves.gif" alt="Special moves" width="400"><br><b>Special moves</b><br>en passant · promotion with capture · queenside and kingside castling<br><code>--theme gray</code></td>
   </tr>
 </table>
 
-I PGN di partenza sono in [`examples/`](examples/).
+The source PGNs live in [`examples/`](examples/).
 
-## 🛠️ Uso
+## 🛠️ Usage
 
-### Riga di comando
+### Command line
 
 ```text
-pgn-gif [-h] [-o OUTPUT] [-q {l,m,h,k}] [-t TEMPO] [--tema TEMA] pgn
+pgn-gif [-h] [-o OUTPUT] [-q {l,m,h,k}] [-t MOVE_TIME] [--theme THEME] pgn
 ```
 
-| Opzione         | Significato                                         | Predefinito             |
-|-----------------|-----------------------------------------------------|-------------------------|
-| `pgn`           | file PGN, oppure `-` per leggere da stdin           | —                       |
-| `-o, --output`  | GIF da creare                                       | nome del PGN con `.gif` |
-| `-q, --qualita` | `l` 480p · `m` 720p · `h` 1080p · `k` 4K            | `m`                     |
-| `-t, --tempo`   | secondi per semimossa                               | `0.5`                   |
-| `--tema`        | `marrone` · `verde` · `blu` · `grigio`              | `marrone`               |
+| Option            | Meaning                                          | Default                  |
+|-------------------|--------------------------------------------------|--------------------------|
+| `pgn`             | PGN file, or `-` to read from stdin              | —                        |
+| `-o, --output`    | GIF to create                                    | PGN name with `.gif`     |
+| `-q, --quality`   | `l` 480p · `m` 720p · `h` 1080p · `k` 4K         | `m`                      |
+| `-t, --move-time` | seconds per ply                                  | `0.5`                    |
+| `--theme`         | `brown` · `green` · `blue` · `gray`              | `brown`                  |
 
 ```bash
-pgn-gif examples/sempreverde.pgn -q h -t 1.5 --tema blu   # moviola in alta definizione
+pgn-gif examples/evergreen_game.pgn -q h -t 1.5 --theme blue   # slow motion in full HD
 curl -s https://lichess.org/game/export/<id> | pgn-gif - -o lichess.gif
 ```
 
-### Come scena Manim
+### As a Manim scene
 
 ```bash
-PGN_GIF_FILE=examples/opera.pgn PGN_GIF_TEMA=verde manim -qm --format=gif pgn_gif.py PartitaPGN
+PGN_GIF_FILE=examples/opera_game.pgn PGN_GIF_THEME=green manim -qm --format=gif pgn_gif.py ChessGame
 ```
 
-Senza `PGN_GIF_FILE` viene usato `partita.pgn` della cartella corrente, oppure la Partita dell'Opera incorporata.
+Without `PGN_GIF_FILE`, `game.pgn` in the current directory is used, falling back to the built-in Opera Game.
 
-### Da Python
+### From Python
 
 ```python
-from pgn_gif import renderizza
+from pgn_gif import render_gif
 
-renderizza(open("partita.pgn").read(), "partita.gif", qualita="l", tempo_mossa=0.3, tema="verde")
+render_gif(open("game.pgn").read(), "game.gif", quality="l", move_time=0.3, theme="green")
 ```
 
-## 📚 Documentazione
+## 📚 Documentation
 
-| Documento                                      | Contenuto                                                  |
-|------------------------------------------------|------------------------------------------------------------|
-| [Guida all'uso](docs/uso.md)                   | installazione per sistema, tutte le opzioni, personalizzazione |
-| [Come funziona](docs/come_funziona.md)         | architettura, casi speciali degli scacchi, ottimizzazione GIF |
-| [Contribuire](CONTRIBUTING.md)                 | ambiente di sviluppo e linee guida                         |
+| Document                               | Contents                                                   |
+|----------------------------------------|------------------------------------------------------------|
+| [Usage guide](docs/usage.md)           | per-OS installation, every option, customization           |
+| [How it works](docs/how_it_works.md)   | architecture, chess edge cases, GIF optimization           |
+| [Contributing](CONTRIBUTING.md)        | development setup and guidelines                           |
 
-## 🧪 Test
+## 🧪 Tests
 
 ```bash
 pip install -e ".[dev]"
-pytest                  # suite completa (~10 s)
-pytest -m "not slow"    # solo la logica, senza renderizzare
+pytest                  # full suite (~10 s)
+pytest -m "not slow"    # logic only, no rendering
 ```
 
-Tra i test c'è una simulazione che riapplica il piano di animazione di ogni partita d'esempio e verifica che la posizione finale coincida, pezzo per pezzo, con quella calcolata da python-chess.
+One of the tests replays the animation plan of every example game and checks that the final position matches, piece by piece, the one computed by python-chess.
 
-## 🗂️ Struttura
+## 🗂️ Layout
 
 ```text
 pgn_gif/
-├── pgn_core.py        # logica pura: lettura PGN, piano delle mosse, temi, SVG dei pezzi
-├── pgn_gif.py         # scena Manim, rendering e riga di comando
-├── examples/          # partite PGN d'esempio
-├── assets/            # GIF generate dagli esempi
-├── docs/              # documentazione
-└── tests/             # test pytest
+├── pgn_core.py        # pure logic: PGN parsing, move planning, themes, piece SVGs
+├── pgn_gif.py         # Manim scene, rendering and command line
+├── examples/          # sample PGN games
+├── assets/            # GIFs rendered from the examples
+├── docs/              # documentation
+└── tests/             # pytest tests
 ```
 
-## 📄 Licenza
+## 📄 License
 
-Distribuito con licenza [MIT](LICENSE).
+Released under the [MIT](LICENSE) license.
 
-Costruito con [Manim Community](https://www.manim.community/) e [python-chess](https://python-chess.readthedocs.io/).
-I pezzi sono quelli di Colin M.L. Burnett, generati al momento da python-chess (non sono inclusi nel repository).
+Built with [Manim Community](https://www.manim.community/) and [python-chess](https://python-chess.readthedocs.io/).
+The pieces are Colin M.L. Burnett's set, generated on the fly by python-chess (they are not included in this repository).

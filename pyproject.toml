@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pgn-gif"
 version = "1.0.0"
-description = "Trasforma partite di scacchi in notazione PGN in GIF animate con Manim"
+description = "Turn chess games in PGN notation into animated GIFs with Manim"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Giordi9902" }]
 requires-python = ">=3.10"
 dependencies = ["manim>=0.18", "chess>=1.10"]
-keywords = ["chess", "scacchi", "pgn", "gif", "manim", "animation"]
+keywords = ["chess", "pgn", "gif", "manim", "animation"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Games/Entertainment :: Board Games",
@@ -33,5 +33,5 @@ py-modules = ["pgn_gif", "pgn_core"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: renderizza davvero una GIF con Manim (deselezionabile con -m 'not slow')"]
+markers = ["slow: actually renders a GIF with Manim (skip with -m 'not slow')"]
 filterwarnings = ["ignore::DeprecationWarning:chess.engine"]

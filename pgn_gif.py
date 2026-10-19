@@ -1,18 +1,18 @@
 """
-Converte una partita in notazione PGN in una GIF animata con Manim.
+Turn a chess game in PGN notation into an animated GIF with Manim.
 
-Requisiti:
+Requirements:
     pip install manim chess
 
-Uso da riga di comando:
-    python pgn_gif.py partita.pgn -o partita.gif --tema verde
+Command line:
+    python pgn_gif.py game.pgn -o game.gif --theme green
 
-Uso con Manim:
-    manim -qm --format=gif pgn_gif.py PartitaPGN
+With Manim:
+    manim -qm --format=gif pgn_gif.py ChessGame
 
-Con Manim viene letto il file indicato da $PGN_GIF_FILE, altrimenti
-"partita.pgn" se esiste, altrimenti la partita d'esempio qui sotto.
-Il tema si sceglie con $PGN_GIF_TEMA.
+With Manim the file named by $PGN_GIF_FILE is used, otherwise "game.pgn" if
+it exists, otherwise the sample game below. The theme is read from
+$PGN_GIF_THEME.
 """
 import argparse
 import functools
@@ -25,17 +25,16 @@ import tempfile
 import chess
 from manim import *
 
-from pgn_core import (SQ, TEMA_PREDEFINITO, TEMI, carica_partita, colore_casa,
-                      descrivi_risultato, giocatori, pezzo_svg, pianifica, pos,
-                      sottotitolo)
+from pgn_core import (SQ, DEFAULT_THEME, THEMES, describe_result, load_game,
+                      piece_svg, plan_moves, players, pos, square_color, subtitle)
 
-PGN_FILE = "partita.pgn"
-PGN_ESEMPIO = """
-[Event "Partita dell'Opera"]
-[Site "Parigi"]
+PGN_FILE = "game.pgn"
+SAMPLE_PGN = """
+[Event "Opera Game"]
+[Site "Paris"]
 [Date "1858.??.??"]
 [White "Paul Morphy"]
-[Black "Duca di Brunswick e Conte Isouard"]
+[Black "Duke Karl / Count Isouard"]
 [Result "1-0"]
 
 1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7
@@ -43,254 +42,254 @@ PGN_ESEMPIO = """
 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0
 """
 
-TEMPO_MOSSA = 0.5             # secondi per mossa
+MOVE_TIME = 0.5               # seconds per move
 FONT = "DejaVu Sans"
-SFONDO = "#262421"
-TESTO_TENUE = "#9E9B98"
-ORO = "#E8C547"
-PANNELLO = RIGHT * 4.05       # centro del riquadro a destra della scacchiera
-LARGHEZZA_PANNELLO = 4.6
-QUALITA = {"l": "low_quality", "m": "medium_quality",
-           "h": "high_quality", "k": "fourk_quality"}
-# Palette unica senza dithering e frame aggiornati solo nel rettangolo che cambia:
-# le GIF risultano molto più leggere di quelle scritte direttamente da Manim
-FILTRO_GIF = ("split[a][b];[a]palettegen=max_colors=96:stats_mode=full[p];"
+BACKGROUND = "#262421"
+MUTED_TEXT = "#9E9B98"
+GOLD = "#E8C547"
+PANEL = RIGHT * 4.05          # centre of the panel to the right of the board
+PANEL_WIDTH = 4.6
+QUALITIES = {"l": "low_quality", "m": "medium_quality",
+             "h": "high_quality", "k": "fourk_quality"}
+# Single palette without dithering, and frames updated only in the rectangle
+# that changes: far smaller GIFs than the ones Manim writes directly
+GIF_FILTER = ("split[a][b];[a]palettegen=max_colors=96:stats_mode=full[p];"
               "[b][p]paletteuse=dither=none:diff_mode=rectangle")
 
-_CARTELLA_SVG = tempfile.TemporaryDirectory(prefix="pgn_gif_")
+_SVG_DIR = tempfile.TemporaryDirectory(prefix="pgn_gif_")
 
 
-def leggi_pgn_predefinito():
-    percorso = os.environ.get("PGN_GIF_FILE", PGN_FILE)
-    if os.path.exists(percorso):
-        with open(percorso, encoding="utf-8") as f:
+def read_default_pgn():
+    path = os.environ.get("PGN_GIF_FILE", PGN_FILE)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
             return f.read()
-    return PGN_ESEMPIO
+    return SAMPLE_PGN
 
 
 @functools.lru_cache(maxsize=None)
-def file_svg(simbolo):
-    """Scrive (una volta sola) l'SVG del pezzo e ne restituisce il percorso."""
-    colore = "b" if simbolo.isupper() else "n"
-    percorso = os.path.join(_CARTELLA_SVG.name, f"{simbolo.lower()}{colore}.svg")
-    with open(percorso, "w", encoding="utf-8") as f:
-        f.write(pezzo_svg(chess.Piece.from_symbol(simbolo)))
-    return percorso
+def svg_file(symbol):
+    """Write the piece SVG (only once) and return its path."""
+    color = "w" if symbol.isupper() else "b"
+    path = os.path.join(_SVG_DIR.name, f"{symbol.lower()}{color}.svg")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(piece_svg(chess.Piece.from_symbol(symbol)))
+    return path
 
 
-def crea_pezzo(piece):
-    return SVGMobject(file_svg(piece.symbol()), height=SQ)
+def make_piece(piece):
+    return SVGMobject(svg_file(piece.symbol()), height=SQ)
 
 
-def scritta(contenuto, dimensione, colore=WHITE, **kwargs):
-    t = Text(contenuto, font=FONT, font_size=dimensione, color=colore, **kwargs)
-    if t.width > LARGHEZZA_PANNELLO:
-        t.scale_to_fit_width(LARGHEZZA_PANNELLO)
+def label(content, size, color=WHITE, **kwargs):
+    t = Text(content, font=FONT, font_size=size, color=color, **kwargs)
+    if t.width > PANEL_WIDTH:
+        t.scale_to_fit_width(PANEL_WIDTH)
     return t
 
 
-def righe_giocatori(bianco, nero):
-    """Pallino del colore seguito dal nome, con i due nomi alla stessa scala."""
-    nomi = [Text(n, font=FONT, font_size=26, weight=BOLD) for n in (bianco, nero)]
-    massimo = LARGHEZZA_PANNELLO - 0.5
-    scala = min(1, *(massimo / t.width for t in nomi if t.width))
-    righe = []
-    for t, colore in zip(nomi, (WHITE, BLACK)):
-        disco = Circle(0.13, fill_color=colore, fill_opacity=1,
-                       stroke_color=TESTO_TENUE, stroke_width=1.5)
-        righe.append(VGroup(disco, t.scale(scala)).arrange(RIGHT, buff=0.22))
-    return righe
+def player_rows(white, black):
+    """Coloured dot followed by the name, with both names at the same scale."""
+    names = [Text(n, font=FONT, font_size=26, weight=BOLD) for n in (white, black)]
+    widest = PANEL_WIDTH - 0.5
+    scale = min(1, *(widest / t.width for t in names if t.width))
+    rows = []
+    for t, color in zip(names, (WHITE, BLACK)):
+        dot = Circle(0.13, fill_color=color, fill_opacity=1,
+                     stroke_color=MUTED_TEXT, stroke_width=1.5)
+        rows.append(VGroup(dot, t.scale(scale)).arrange(RIGHT, buff=0.22))
+    return rows
 
 
-def alone_scacco(square):
-    """Sfumatura radiale rossa sotto il re sotto scacco."""
+def check_glow(square):
+    """Red radial glow under the king in check."""
     return VGroup(*[
         Circle(SQ * r, fill_color="#FF2A2A", fill_opacity=0.28, stroke_width=0)
         for r in (0.5, 0.38, 0.26)
     ]).move_to(np.array(pos(square)))
 
 
-class PartitaPGN(Scene):
-    def __init__(self, testo=None, tempo_mossa=TEMPO_MOSSA, tema=None, **kwargs):
+class ChessGame(Scene):
+    def __init__(self, pgn=None, move_time=MOVE_TIME, theme=None, **kwargs):
         super().__init__(**kwargs)
-        self.testo = testo
-        self.tempo_mossa = tempo_mossa
-        self.tema = TEMI[tema or os.environ.get("PGN_GIF_TEMA", TEMA_PREDEFINITO)]
+        self.pgn = pgn
+        self.move_time = move_time
+        self.theme = THEMES[theme or os.environ.get("PGN_GIF_THEME", DEFAULT_THEME)]
 
     def construct(self):
-        game = carica_partita(self.testo or leggi_pgn_predefinito())
-        mosse = list(pianifica(game))
-        tema = self.tema
+        game = load_game(self.pgn or read_default_pgn())
+        moves = list(plan_moves(game))
+        theme = self.theme
         p = lambda sq: np.array(pos(sq))
-        self.camera.background_color = SFONDO
+        self.camera.background_color = BACKGROUND
 
-        # Cornice con ombra
-        lato = 8 * SQ + 0.28
-        centro = (p(chess.A1) + p(chess.H8)) / 2
-        ombra = RoundedRectangle(corner_radius=0.12, width=lato, height=lato,
-                                 fill_color=BLACK, fill_opacity=0.45, stroke_width=0)
-        cornice = RoundedRectangle(corner_radius=0.12, width=lato, height=lato,
-                                   fill_color=tema.cornice, fill_opacity=1, stroke_width=0)
-        ombra.move_to(centro + RIGHT * 0.09 + DOWN * 0.09)
-        cornice.move_to(centro)
+        # Frame with drop shadow
+        side = 8 * SQ + 0.28
+        centre = (p(chess.A1) + p(chess.H8)) / 2
+        shadow = RoundedRectangle(corner_radius=0.12, width=side, height=side,
+                                  fill_color=BLACK, fill_opacity=0.45, stroke_width=0)
+        frame = RoundedRectangle(corner_radius=0.12, width=side, height=side,
+                                 fill_color=theme.border, fill_opacity=1, stroke_width=0)
+        shadow.move_to(centre + RIGHT * 0.09 + DOWN * 0.09)
+        frame.move_to(centre)
 
-        # Case e coordinate interne, nel colore della casa opposta
-        caselle = VGroup(*[
-            Square(SQ, fill_color=colore_casa(sq, tema), fill_opacity=1,
+        # Squares and inner coordinates, in the colour of the opposite square
+        squares = VGroup(*[
+            Square(SQ, fill_color=square_color(sq, theme), fill_opacity=1,
                    stroke_width=0).move_to(p(sq))
             for sq in chess.SQUARES
         ])
-        def coordinata(etichetta, sq, angolo):
-            colore = tema.chiara if colore_casa(sq, tema) == tema.scura else tema.scura
-            t = Text(etichetta, font=FONT, font_size=13, weight=BOLD, color=colore)
-            return t.move_to(p(sq) + angolo * (SQ / 2 - 0.1))
-        coordinate = VGroup(
-            *[coordinata(chr(97 + f), chess.square(f, 0), DR) for f in range(8)],
-            *[coordinata(str(r + 1), chess.square(0, r), UL) for r in range(8)],
+        def coordinate(text, sq, corner):
+            color = theme.light if square_color(sq, theme) == theme.dark else theme.dark
+            t = Text(text, font=FONT, font_size=13, weight=BOLD, color=color)
+            return t.move_to(p(sq) + corner * (SQ / 2 - 0.1))
+        coordinates = VGroup(
+            *[coordinate(chr(97 + f), chess.square(f, 0), DR) for f in range(8)],
+            *[coordinate(str(r + 1), chess.square(0, r), UL) for r in range(8)],
         )
 
-        # Evidenziazione dell'ultima mossa, invisibile finché non si muove nulla
-        evidenza = VGroup(*[
-            Square(SQ, fill_color=tema.evidenza, fill_opacity=0, stroke_width=0)
+        # Last-move highlight, invisible until something moves
+        highlight = VGroup(*[
+            Square(SQ, fill_color=theme.highlight, fill_opacity=0, stroke_width=0)
             for _ in range(2)
         ])
-        self.add(ombra, cornice, caselle, coordinate, evidenza)
+        self.add(shadow, frame, squares, coordinates, highlight)
 
-        # Pezzi iniziali
-        pezzi = {}
+        # Starting pieces
+        pieces = {}
         for sq, piece in game.board().piece_map().items():
-            pezzi[sq] = crea_pezzo(piece).move_to(p(sq))
-            self.add(pezzi[sq])
+            pieces[sq] = make_piece(piece).move_to(p(sq))
+            self.add(pieces[sq])
 
-        # Pannello: Nero in alto e Bianco in basso, come sulla scacchiera
-        bianco, nero = giocatori(game)
-        riga_bianco, riga_nero = righe_giocatori(bianco, nero)
-        riga_nero.move_to(PANNELLO + UP * 3.05)
-        riga_bianco.move_to(PANNELLO + DOWN * 3.05)
-        riga_nero.set_opacity(0.45)
-        info = scritta(sottotitolo(game), 20, TESTO_TENUE).move_to(PANNELLO + UP * 1.5)
-        etichetta = scritta("", 48).move_to(PANNELLO + UP * 0.5)
-        larghezza_barra = 3.6
-        sinistra_barra = PANNELLO + LEFT * larghezza_barra / 2 + DOWN * 0.35
-        binario = RoundedRectangle(corner_radius=0.03, width=larghezza_barra, height=0.06,
-                                   fill_color=WHITE, fill_opacity=0.15, stroke_width=0)
-        binario.move_to(sinistra_barra + RIGHT * larghezza_barra / 2)
-        def barra(frazione):
-            r = Rectangle(width=max(larghezza_barra * frazione, 0.001), height=0.06,
-                          fill_color=ORO, fill_opacity=1, stroke_width=0)
-            return r.move_to(sinistra_barra, aligned_edge=LEFT)
-        avanzamento = barra(0)
-        self.add(riga_nero, riga_bianco, info, etichetta, binario, avanzamento)
+        # Panel: Black at the top and White at the bottom, as on the board
+        white, black = players(game)
+        white_row, black_row = player_rows(white, black)
+        black_row.move_to(PANEL + UP * 3.05)
+        white_row.move_to(PANEL + DOWN * 3.05)
+        black_row.set_opacity(0.45)
+        info = label(subtitle(game), 20, MUTED_TEXT).move_to(PANEL + UP * 1.5)
+        current = label("", 48).move_to(PANEL + UP * 0.5)
+        bar_width = 3.6
+        bar_left = PANEL + LEFT * bar_width / 2 + DOWN * 0.35
+        track = RoundedRectangle(corner_radius=0.03, width=bar_width, height=0.06,
+                                 fill_color=WHITE, fill_opacity=0.15, stroke_width=0)
+        track.move_to(bar_left + RIGHT * bar_width / 2)
+        def bar(fraction):
+            r = Rectangle(width=max(bar_width * fraction, 0.001), height=0.06,
+                          fill_color=GOLD, fill_opacity=1, stroke_width=0)
+            return r.move_to(bar_left, aligned_edge=LEFT)
+        progress = bar(0)
+        self.add(black_row, white_row, info, current, track, progress)
         self.wait(0.5)
 
-        # Animazione delle mosse
-        alone = None
-        for i, mossa in enumerate(mosse):
+        # Move animation
+        glow = None
+        for i, move in enumerate(moves):
             anims = []
-            pezzo = pezzi.pop(mossa.da)
-            self.bring_to_front(pezzo)    # passa sopra agli altri pezzi
+            piece = pieces.pop(move.from_sq)
+            self.bring_to_front(piece)    # slides over the other pieces
 
-            for quadrato, sq in zip(evidenza, (mossa.da, mossa.a)):
-                quadrato.move_to(p(sq)).set_fill(opacity=0.5)
+            for square, sq in zip(highlight, (move.from_sq, move.to_sq)):
+                square.move_to(p(sq)).set_fill(opacity=0.5)
 
-            if alone:
-                anims.append(FadeOut(alone))
-                alone = None
+            if glow:
+                anims.append(FadeOut(glow))
+                glow = None
 
-            if mossa.catturata is not None:
-                anims.append(FadeOut(pezzi.pop(mossa.catturata), scale=0.6))
+            if move.captured is not None:
+                anims.append(FadeOut(pieces.pop(move.captured), scale=0.6))
 
-            anims.append(pezzo.animate.move_to(p(mossa.a)))
+            anims.append(piece.animate.move_to(p(move.to_sq)))
 
-            if mossa.torre:
-                da, a = mossa.torre
-                torre = pezzi.pop(da)
-                anims.append(torre.animate.move_to(p(a)))
-                pezzi[a] = torre
+            if move.rook:
+                rook_from, rook_to = move.rook
+                rook = pieces.pop(rook_from)
+                anims.append(rook.animate.move_to(p(rook_to)))
+                pieces[rook_to] = rook
 
-            if mossa.scacco is not None:
-                alone = alone_scacco(mossa.scacco)
-                # sopra case ed evidenza, sotto i pezzi
-                self.bring_to_back(ombra, cornice, caselle, coordinate, evidenza, alone)
-                anims.append(FadeIn(alone))
+            if move.check is not None:
+                glow = check_glow(move.check)
+                # above squares and highlight, below the pieces
+                self.bring_to_back(shadow, frame, squares, coordinates, highlight, glow)
+                anims.append(FadeIn(glow))
 
-            # Il giocatore che deve muovere è in evidenza
-            muove_bianco = i % 2 == 1
-            anims += [riga_bianco.animate.set_opacity(1 if muove_bianco else 0.45),
-                      riga_nero.animate.set_opacity(0.45 if muove_bianco else 1)]
+            # The side to move is highlighted
+            white_to_move = i % 2 == 1
+            anims += [white_row.animate.set_opacity(1 if white_to_move else 0.45),
+                      black_row.animate.set_opacity(0.45 if white_to_move else 1)]
 
-            nuova_etichetta = scritta(mossa.etichetta, 48).move_to(PANNELLO + UP * 0.5)
-            anims += [FadeOut(etichetta, shift=UP * 0.2), FadeIn(nuova_etichetta, shift=UP * 0.2)]
-            etichetta = nuova_etichetta
-            anims.append(Transform(avanzamento, barra((i + 1) / len(mosse))))
-            self.play(*anims, run_time=self.tempo_mossa)
+            new_label = label(move.label, 48).move_to(PANEL + UP * 0.5)
+            anims += [FadeOut(current, shift=UP * 0.2), FadeIn(new_label, shift=UP * 0.2)]
+            current = new_label
+            anims.append(Transform(progress, bar((i + 1) / len(moves))))
+            self.play(*anims, run_time=self.move_time)
 
-            # Promozione: sostituisce il pedone
-            if mossa.promozione:
-                nuovo = crea_pezzo(mossa.promozione).move_to(p(mossa.a))
-                self.play(ReplacementTransform(pezzo, nuovo), run_time=0.3)
-                pezzo = nuovo
+            # Promotion: replace the pawn
+            if move.promotion:
+                promoted = make_piece(move.promotion).move_to(p(move.to_sq))
+                self.play(ReplacementTransform(piece, promoted), run_time=0.3)
+                piece = promoted
 
-            pezzi[mossa.a] = pezzo
+            pieces[move.to_sq] = piece
 
-        risultato = game.headers.get("Result", "*")
-        finale = VGroup(scritta(risultato.replace("1/2", "½"), 52, ORO, weight=BOLD))
-        descrizione = descrivi_risultato(risultato)
-        if descrizione:
-            finale.add(scritta(descrizione, 22, TESTO_TENUE))
-        finale.arrange(DOWN, buff=0.15).next_to(binario, DOWN, buff=0.5)
-        self.play(FadeIn(finale, shift=UP * 0.2), riga_bianco.animate.set_opacity(1),
-                  riga_nero.animate.set_opacity(1), run_time=0.6)
+        result = game.headers.get("Result", "*")
+        ending = VGroup(label(result.replace("1/2", "½"), 52, GOLD, weight=BOLD))
+        description = describe_result(result)
+        if description:
+            ending.add(label(description, 22, MUTED_TEXT))
+        ending.arrange(DOWN, buff=0.15).next_to(track, DOWN, buff=0.5)
+        self.play(FadeIn(ending, shift=UP * 0.2), white_row.animate.set_opacity(1),
+                  black_row.animate.set_opacity(1), run_time=0.6)
         self.wait(2)
 
 
-def renderizza(testo, uscita, qualita="m", tempo_mossa=TEMPO_MOSSA, tema=TEMA_PREDEFINITO):
-    """Renderizza `testo` (PGN) nella GIF `uscita` e restituisce il percorso."""
-    carica_partita(testo)     # errore chiaro prima di avviare Manim
+def render_gif(pgn, output, quality="m", move_time=MOVE_TIME, theme=DEFAULT_THEME):
+    """Render `pgn` (PGN text) to the GIF `output` and return its path."""
+    load_game(pgn)            # fail clearly before starting Manim
     ffmpeg = shutil.which("ffmpeg")
     with tempfile.TemporaryDirectory() as tmp:
         with tempconfig({"format": "mp4" if ffmpeg else "gif",
-                         "quality": QUALITA[qualita], "media_dir": tmp,
-                         "output_file": "partita", "verbosity": "WARNING",
+                         "quality": QUALITIES[quality], "media_dir": tmp,
+                         "output_file": "game", "verbosity": "WARNING",
                          "progress_bar": "none"}):
-            scena = PartitaPGN(testo, tempo_mossa=tempo_mossa, tema=tema)
-            scena.render()
-            video = str(scena.renderer.file_writer.movie_file_path)
-        os.makedirs(os.path.dirname(os.path.abspath(uscita)), exist_ok=True)
+            scene = ChessGame(pgn, move_time=move_time, theme=theme)
+            scene.render()
+            video = str(scene.renderer.file_writer.movie_file_path)
+        os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
         if ffmpeg:
             subprocess.run([ffmpeg, "-loglevel", "error", "-y", "-i", video,
-                            "-filter_complex", FILTRO_GIF, uscita], check=True)
+                            "-filter_complex", GIF_FILTER, output], check=True)
         else:
-            shutil.move(video, uscita)
-    return uscita
+            shutil.move(video, output)
+    return output
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="pgn-gif", description="Trasforma una partita PGN in una GIF animata.")
-    parser.add_argument("pgn", help="file PGN da animare ('-' per lo standard input)")
+        prog="pgn-gif", description="Turn a PGN chess game into an animated GIF.")
+    parser.add_argument("pgn", help="PGN file to animate ('-' for standard input)")
     parser.add_argument("-o", "--output",
-                        help="GIF di destinazione (predefinito: nome del PGN con .gif)")
-    parser.add_argument("-q", "--qualita", choices=QUALITA, default="m",
-                        help="l=480p15, m=720p30, h=1080p60, k=2160p60 (predefinito: m)")
-    parser.add_argument("-t", "--tempo", type=float, default=TEMPO_MOSSA,
-                        help=f"secondi per mossa (predefinito: {TEMPO_MOSSA})")
-    parser.add_argument("--tema", choices=TEMI, default=TEMA_PREDEFINITO,
-                        help=f"colori della scacchiera (predefinito: {TEMA_PREDEFINITO})")
+                        help="destination GIF (default: the PGN name with .gif)")
+    parser.add_argument("-q", "--quality", choices=QUALITIES, default="m",
+                        help="l=480p15, m=720p30, h=1080p60, k=2160p60 (default: m)")
+    parser.add_argument("-t", "--move-time", type=float, default=MOVE_TIME,
+                        help=f"seconds per move (default: {MOVE_TIME})")
+    parser.add_argument("--theme", choices=THEMES, default=DEFAULT_THEME,
+                        help=f"board colours (default: {DEFAULT_THEME})")
     args = parser.parse_args(argv)
 
     if args.pgn == "-":
-        testo, uscita = sys.stdin.read(), args.output or "partita.gif"
+        pgn, output = sys.stdin.read(), args.output or "game.gif"
     else:
         with open(args.pgn, encoding="utf-8") as f:
-            testo = f.read()
-        uscita = args.output or os.path.splitext(args.pgn)[0] + ".gif"
+            pgn = f.read()
+        output = args.output or os.path.splitext(args.pgn)[0] + ".gif"
 
     try:
-        renderizza(testo, uscita, args.qualita, args.tempo, args.tema)
+        render_gif(pgn, output, args.quality, args.move_time, args.theme)
     except ValueError as e:
-        parser.exit(1, f"errore: {e}\n")
-    print(uscita)
+        parser.exit(1, f"error: {e}\n")
+    print(output)
 
 
 if __name__ == "__main__":

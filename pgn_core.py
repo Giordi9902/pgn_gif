@@ -1,8 +1,8 @@
 """
-Logica pura di pgn_gif: lettura del PGN e pianificazione delle animazioni.
+Pure logic for pgn_gif: PGN parsing and animation planning.
 
-Questo modulo dipende solo da python-chess, così può essere testato senza
-Manim. La scena in pgn_gif.py si limita a tradurre ogni `Mossa` in animazioni.
+This module depends only on python-chess, so it can be tested without Manim.
+The scene in pgn_gif.py simply turns every `MovePlan` into animations.
 """
 import io
 from dataclasses import dataclass
@@ -12,129 +12,129 @@ import chess
 import chess.pgn
 import chess.svg
 
-SQ = 0.85                     # lato di una casa
-OFFSET_X = -2.6               # spostamento della scacchiera verso sinistra
+SQ = 0.85                     # side of a square
+OFFSET_X = -2.6               # shift of the board to the left
 
 
 @dataclass(frozen=True)
-class Tema:
-    chiara: str               # case chiare
-    scura: str                # case scure
-    evidenza: str             # case dell'ultima mossa (sovrapposto a opacità 0.5)
-    cornice: str              # bordo attorno alla scacchiera
+class Theme:
+    light: str                # light squares
+    dark: str                 # dark squares
+    highlight: str            # last-move squares (overlaid at 0.5 opacity)
+    border: str               # frame around the board
 
 
-TEMI = {
-    "marrone": Tema("#F0D9B5", "#B58863", "#CDD26A", "#6E4F36"),
-    "verde":   Tema("#EEEED2", "#769656", "#F6F669", "#4B6B3A"),
-    "blu":     Tema("#DEE3E6", "#8CA2AD", "#C3D887", "#4F6672"),
-    "grigio":  Tema("#E0E0E0", "#A0A0A0", "#9BC2E6", "#5A5A5A"),
+THEMES = {
+    "brown": Theme("#F0D9B5", "#B58863", "#CDD26A", "#6E4F36"),
+    "green": Theme("#EEEED2", "#769656", "#F6F669", "#4B6B3A"),
+    "blue":  Theme("#DEE3E6", "#8CA2AD", "#C3D887", "#4F6672"),
+    "gray":  Theme("#E0E0E0", "#A0A0A0", "#9BC2E6", "#5A5A5A"),
 }
-TEMA_PREDEFINITO = "marrone"
+DEFAULT_THEME = "brown"
 
-# Rettangolo trasparente grande quanto il viewBox: senza, ogni pezzo verrebbe
-# ridimensionato sul proprio disegno e pedone e re risulterebbero alti uguali
-_RIEMPI_VIEWBOX = ('<rect x="0" y="0" width="45" height="45" '
-                   'style="fill:#000000;fill-opacity:0;stroke:none"/>')
+# Transparent rectangle as large as the viewBox: without it every piece would be
+# scaled to its own drawing, and a pawn would end up as tall as a king
+_FILL_VIEWBOX = ('<rect x="0" y="0" width="45" height="45" '
+                 'style="fill:#000000;fill-opacity:0;stroke:none"/>')
 
 
 @dataclass(frozen=True)
-class Mossa:
-    """Tutto ciò che serve per animare una semimossa."""
-    da: int                                   # casa di partenza
-    a: int                                    # casa di arrivo
-    catturata: Optional[int] = None           # casa del pezzo catturato
-    torre: Optional[Tuple[int, int]] = None   # (da, a) della torre nell'arrocco
-    promozione: Optional[chess.Piece] = None  # pezzo che sostituisce il pedone
-    etichetta: str = ""                       # es. "12. O-O-O" o "12... Rd8"
-    scacco: Optional[int] = None              # casa del re sotto scacco dopo la mossa
+class MovePlan:
+    """Everything needed to animate a single ply."""
+    from_sq: int                              # origin square
+    to_sq: int                                # destination square
+    captured: Optional[int] = None            # square of the captured piece
+    rook: Optional[Tuple[int, int]] = None    # (from, to) of the rook when castling
+    promotion: Optional[chess.Piece] = None   # piece replacing the pawn
+    label: str = ""                           # e.g. "12. O-O-O" or "12... Rd8"
+    check: Optional[int] = None               # square of the king in check after the move
 
 
 def pos(square):
-    """Coordinate (x, y, z) del centro di una casa (a1 in basso a sinistra)."""
+    """(x, y, z) coordinates of the centre of a square (a1 bottom left)."""
     f, r = chess.square_file(square), chess.square_rank(square)
     return ((f - 3.5) * SQ + OFFSET_X, (r - 3.5) * SQ, 0.0)
 
 
-def colore_casa(square, tema=TEMI[TEMA_PREDEFINITO]):
-    """Colore di sfondo della casa: a1 è scura."""
+def square_color(square, theme=THEMES[DEFAULT_THEME]):
+    """Background colour of a square: a1 is dark."""
     f, r = chess.square_file(square), chess.square_rank(square)
-    return tema.scura if (f + r) % 2 == 0 else tema.chiara
+    return theme.dark if (f + r) % 2 == 0 else theme.light
 
 
-def pezzo_svg(piece):
-    """SVG del pezzo (stile cburnett, fornito da python-chess) su un riquadro 45×45."""
+def piece_svg(piece):
+    """SVG of the piece (cburnett set, shipped with python-chess) on a 45×45 box."""
     svg = chess.svg.piece(piece)
-    apertura = svg.index(">", svg.index("<svg")) + 1
-    return svg[:apertura] + _RIEMPI_VIEWBOX + svg[apertura:]
+    opening = svg.index(">", svg.index("<svg")) + 1
+    return svg[:opening] + _FILL_VIEWBOX + svg[opening:]
 
 
-class _RaccogliErrori(chess.pgn.GameBuilder):
-    """Come GameBuilder, ma raccoglie gli errori senza scriverli nel log."""
+class _CollectErrors(chess.pgn.GameBuilder):
+    """Like GameBuilder, but collects errors without logging them."""
     def handle_error(self, error):
         self.game.errors.append(error)
 
 
-def carica_partita(testo):
-    """Legge la prima partita di un testo PGN, sollevando ValueError se non valida."""
-    game = chess.pgn.read_game(io.StringIO(testo), Visitor=_RaccogliErrori)
+def load_game(text):
+    """Read the first game of a PGN text, raising ValueError if it is invalid."""
+    game = chess.pgn.read_game(io.StringIO(text), Visitor=_CollectErrors)
     if game is None:
-        raise ValueError("nessuna partita trovata nel PGN")
+        raise ValueError("no game found in the PGN")
     if game.errors:
-        raise ValueError(f"PGN non valido: {game.errors[0]}")
+        raise ValueError(f"invalid PGN: {game.errors[0]}")
     return game
 
 
-def etichetta(numero, san):
-    """Etichetta di una semimossa (numero parte da 0): '1. e4', '1... e5'."""
-    return f"{numero // 2 + 1}.{'' if numero % 2 == 0 else '..'} {san}"
+def move_label(ply, san):
+    """Label of a ply (counting from 0): '1. e4', '1... e5'."""
+    return f"{ply // 2 + 1}.{'' if ply % 2 == 0 else '..'} {san}"
 
 
-def giocatori(game):
-    """Nomi (Bianco, Nero) presi dagli header del PGN."""
+def players(game):
+    """(White, Black) names taken from the PGN headers."""
     h = game.headers
     return h.get("White", "?"), h.get("Black", "?")
 
 
-def sottotitolo(game):
-    """'Evento · anno', omettendo le parti sconosciute."""
+def subtitle(game):
+    """'Event · year', leaving out unknown parts."""
     h = game.headers
-    anno = h.get("Date", "?")[:4]
-    parti = [h.get("Event", "?"), anno]
-    return " · ".join(p for p in parti if p and "?" not in p)
+    year = h.get("Date", "?")[:4]
+    parts = [h.get("Event", "?"), year]
+    return " · ".join(p for p in parts if p and "?" not in p)
 
 
-def descrivi_risultato(risultato):
-    """Testo leggibile del risultato PGN."""
-    return {"1-0": "Vince il Bianco", "0-1": "Vince il Nero",
-            "1/2-1/2": "Patta"}.get(risultato, "")
+def describe_result(result):
+    """Human-readable PGN result."""
+    return {"1-0": "White wins", "0-1": "Black wins",
+            "1/2-1/2": "Draw"}.get(result, "")
 
 
-def pianifica(game) -> Iterator[Mossa]:
-    """Percorre la linea principale producendo una `Mossa` per ogni semimossa."""
+def plan_moves(game) -> Iterator[MovePlan]:
+    """Walk the mainline, yielding a `MovePlan` for every ply."""
     board = game.board()
-    for numero, move in enumerate(game.mainline_moves()):
-        da, a = move.from_square, move.to_square
+    for ply, move in enumerate(game.mainline_moves()):
+        from_sq, to_sq = move.from_square, move.to_square
 
-        # Cattura (incluso en passant, dove il pedone non sta sulla casa d'arrivo)
+        # Capture (including en passant, where the pawn is not on the target square)
         if board.is_en_passant(move):
-            catturata = chess.square(chess.square_file(a), chess.square_rank(da))
-        elif board.piece_at(a) is not None and not board.is_castling(move):
-            catturata = a
+            captured = chess.square(chess.square_file(to_sq), chess.square_rank(from_sq))
+        elif board.piece_at(to_sq) is not None and not board.is_castling(move):
+            captured = to_sq
         else:
-            catturata = None
+            captured = None
 
-        # Arrocco: muove anche la torre
-        torre = None
+        # Castling: the rook moves too
+        rook = None
         if board.is_castling(move):
-            rank = chess.square_rank(da)
+            rank = chess.square_rank(from_sq)
             rf, rt = (7, 5) if board.is_kingside_castling(move) else (0, 3)
-            torre = (chess.square(rf, rank), chess.square(rt, rank))
+            rook = (chess.square(rf, rank), chess.square(rt, rank))
 
-        promozione = chess.Piece(move.promotion, board.turn) if move.promotion else None
+        promotion = chess.Piece(move.promotion, board.turn) if move.promotion else None
 
-        # SAN va calcolato prima di push, lo scacco dopo
+        # SAN must be computed before push, check after it
         san = board.san(move)
         board.push(move)
-        scacco = board.king(board.turn) if board.is_check() else None
-        yield Mossa(da, a, catturata, torre, promozione, etichetta(numero, san), scacco)
+        check = board.king(board.turn) if board.is_check() else None
+        yield MovePlan(from_sq, to_sq, captured, rook, promotion, move_label(ply, san), check)

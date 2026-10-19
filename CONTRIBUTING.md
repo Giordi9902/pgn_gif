@@ -1,8 +1,8 @@
-# Contribuire
+# Contributing
 
-Grazie dell'interesse! Ecco come muoversi.
+Thanks for your interest! Here's how to get going.
 
-## Ambiente di sviluppo
+## Development setup
 
 ```bash
 git clone https://github.com/Giordi9902/pgn_gif.git
@@ -11,22 +11,20 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Manim ha bisogno di Cairo, Pango e ffmpeg; vedi la
-[guida di installazione di Manim](https://docs.manim.community/en/stable/installation.html).
+Manim needs Cairo, Pango and ffmpeg; see the
+[Manim installation guide](https://docs.manim.community/en/stable/installation.html).
 
-## Test
+## Tests
 
 ```bash
-pytest                 # tutta la suite
-pytest -m "not slow"   # solo la logica, senza renderizzare GIF (pochi secondi)
+pytest                 # the whole suite
+pytest -m "not slow"   # logic only, no GIF rendering (a couple of seconds)
 ```
 
-## Linee guida
+## Guidelines
 
-- La logica degli scacchi va in `pgn_core.py`, che non deve importare Manim:
-  così resta testabile in pochi millisecondi.
-- `pgn_gif.py` contiene solo la parte grafica e la riga di comando.
-- Ogni nuova regola o caso particolare va accompagnato da un test in
-  `tests/test_core.py`.
-- Codice, commenti e messaggi sono in italiano: manteniamo lo stile.
-- Se aggiungi una partita in `examples/`, viene validata automaticamente dai test.
+- Chess logic belongs in `pgn_core.py`, which must not import Manim: this
+  keeps it testable in milliseconds.
+- `pgn_gif.py` only contains the graphics and the command line.
+- Every new rule or edge case comes with a test in `tests/test_core.py`.
+- Any game added to `examples/` is validated automatically by the tests.
