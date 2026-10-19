@@ -30,3 +30,17 @@ def test_cli_pgn_non_valido(tmp_path, capsys):
     assert e.value.code == 1
     assert "non valido" in capsys.readouterr().err
     assert not (tmp_path / "rotto.gif").exists()
+
+
+@pytest.mark.parametrize("tema", ["verde", "blu"])
+def test_cli_temi(tmp_path, tema):
+    pgn = tmp_path / "breve.pgn"
+    pgn.write_text("1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0", encoding="utf-8")
+    pgn_gif.main([str(pgn), "-q", "l", "-t", "0.1", "--tema", tema, "-o", str(tmp_path / "out.gif")])
+    assert (tmp_path / "out.gif").stat().st_size > 0
+
+
+def test_cli_tema_sconosciuto(tmp_path):
+    with pytest.raises(SystemExit) as e:
+        pgn_gif.main([str(tmp_path / "x.pgn"), "--tema", "rosa"])
+    assert e.value.code == 2

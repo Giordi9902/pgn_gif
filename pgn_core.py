@@ -10,11 +10,32 @@ from typing import Iterator, Optional, Tuple
 
 import chess
 import chess.pgn
+import chess.svg
 
-SQ = 0.8                      # lato di una casa
-OFFSET_X = -2.0               # spostamento della scacchiera verso sinistra
-LIGHT, DARK = "#F0D9B5", "#B58863"
-GLYPH = {"k": "♚", "q": "♛", "r": "♜", "b": "♝", "n": "♞", "p": "♟"}
+SQ = 0.85                     # lato di una casa
+OFFSET_X = -2.6               # spostamento della scacchiera verso sinistra
+
+
+@dataclass(frozen=True)
+class Tema:
+    chiara: str               # case chiare
+    scura: str                # case scure
+    evidenza: str             # case dell'ultima mossa (sovrapposto a opacità 0.5)
+    cornice: str              # bordo attorno alla scacchiera
+
+
+TEMI = {
+    "marrone": Tema("#F0D9B5", "#B58863", "#CDD26A", "#6E4F36"),
+    "verde":   Tema("#EEEED2", "#769656", "#F6F669", "#4B6B3A"),
+    "blu":     Tema("#DEE3E6", "#8CA2AD", "#C3D887", "#4F6672"),
+    "grigio":  Tema("#E0E0E0", "#A0A0A0", "#9BC2E6", "#5A5A5A"),
+}
+TEMA_PREDEFINITO = "marrone"
+
+# Rettangolo trasparente grande quanto il viewBox: senza, ogni pezzo verrebbe
+# ridimensionato sul proprio disegno e pedone e re risulterebbero alti uguali
+_RIEMPI_VIEWBOX = ('<rect x="0" y="0" width="45" height="45" '
+                   'style="fill:#000000;fill-opacity:0;stroke:none"/>')
 
 
 @dataclass(frozen=True)
@@ -26,6 +47,7 @@ class Mossa:
     torre: Optional[Tuple[int, int]] = None   # (da, a) della torre nell'arrocco
     promozione: Optional[chess.Piece] = None  # pezzo che sostituisce il pedone
     etichetta: str = ""                       # es. "12. O-O-O" o "12... Rd8"
+    scacco: Optional[int] = None              # casa del re sotto scacco dopo la mossa
 
 
 def pos(square):
@@ -34,15 +56,17 @@ def pos(square):
     return ((f - 3.5) * SQ + OFFSET_X, (r - 3.5) * SQ, 0.0)
 
 
-def colore_casa(square):
+def colore_casa(square, tema=TEMI[TEMA_PREDEFINITO]):
     """Colore di sfondo della casa: a1 è scura."""
     f, r = chess.square_file(square), chess.square_rank(square)
-    return DARK if (f + r) % 2 == 0 else LIGHT
+    return tema.scura if (f + r) % 2 == 0 else tema.chiara
 
 
-def glifo(piece):
-    """Carattere Unicode usato per disegnare il pezzo."""
-    return GLYPH[piece.symbol().lower()]
+def pezzo_svg(piece):
+    """SVG del pezzo (stile cburnett, fornito da python-chess) su un riquadro 45×45."""
+    svg = chess.svg.piece(piece)
+    apertura = svg.index(">", svg.index("<svg")) + 1
+    return svg[:apertura] + _RIEMPI_VIEWBOX + svg[apertura:]
 
 
 class _RaccogliErrori(chess.pgn.GameBuilder):
@@ -66,10 +90,24 @@ def etichetta(numero, san):
     return f"{numero // 2 + 1}.{'' if numero % 2 == 0 else '..'} {san}"
 
 
-def titolo(game):
-    """Intestazione 'Bianco – Nero' presa dagli header del PGN."""
+def giocatori(game):
+    """Nomi (Bianco, Nero) presi dagli header del PGN."""
     h = game.headers
-    return f"{h.get('White', '?')} – {h.get('Black', '?')}"
+    return h.get("White", "?"), h.get("Black", "?")
+
+
+def sottotitolo(game):
+    """'Evento · anno', omettendo le parti sconosciute."""
+    h = game.headers
+    anno = h.get("Date", "?")[:4]
+    parti = [h.get("Event", "?"), anno]
+    return " · ".join(p for p in parti if p and "?" not in p)
+
+
+def descrivi_risultato(risultato):
+    """Testo leggibile del risultato PGN."""
+    return {"1-0": "Vince il Bianco", "0-1": "Vince il Nero",
+            "1/2-1/2": "Patta"}.get(risultato, "")
 
 
 def pianifica(game) -> Iterator[Mossa]:
@@ -95,6 +133,8 @@ def pianifica(game) -> Iterator[Mossa]:
 
         promozione = chess.Piece(move.promotion, board.turn) if move.promotion else None
 
-        # SAN va calcolato prima di push
-        yield Mossa(da, a, catturata, torre, promozione, etichetta(numero, board.san(move)))
+        # SAN va calcolato prima di push, lo scacco dopo
+        san = board.san(move)
         board.push(move)
+        scacco = board.king(board.turn) if board.is_check() else None
+        yield Mossa(da, a, catturata, torre, promozione, etichetta(numero, san), scacco)

@@ -3,8 +3,9 @@ from pathlib import Path
 import chess
 import pytest
 
-from pgn_core import (DARK, LIGHT, SQ, carica_partita, colore_casa, etichetta,
-                      glifo, pianifica, pos, titolo)
+from pgn_core import (SQ, TEMA_PREDEFINITO, TEMI, carica_partita, colore_casa,
+                      descrivi_risultato, etichetta, giocatori, pezzo_svg, pianifica,
+                      pos, sottotitolo)
 
 ESEMPI = Path(__file__).resolve().parent.parent / "examples"
 
@@ -33,17 +34,44 @@ def test_pos_case_adiacenti_distano_un_lato():
     assert pos(chess.E2)[0] + SQ == pytest.approx(pos(chess.F2)[0])
 
 
-@pytest.mark.parametrize("casa, colore", [
-    (chess.A1, DARK), (chess.H1, LIGHT), (chess.A8, LIGHT), (chess.H8, DARK),
-    (chess.D1, LIGHT), (chess.E1, DARK),
+@pytest.mark.parametrize("casa, scura", [
+    (chess.A1, True), (chess.H1, False), (chess.A8, False), (chess.H8, True),
+    (chess.D1, False), (chess.E1, True),
 ])
-def test_colore_casa(casa, colore):
-    assert colore_casa(casa) == colore
+@pytest.mark.parametrize("nome", TEMI)
+def test_colore_casa(nome, casa, scura):
+    tema = TEMI[nome]
+    assert colore_casa(casa, tema) == (tema.scura if scura else tema.chiara)
 
 
-def test_glifo_uguale_per_entrambi_i_colori():
-    assert glifo(chess.Piece(chess.KNIGHT, chess.WHITE)) == "♞"
-    assert glifo(chess.Piece(chess.KNIGHT, chess.BLACK)) == "♞"
+def test_tema_predefinito_esiste():
+    assert TEMA_PREDEFINITO in TEMI
+    assert colore_casa(chess.A1) == TEMI[TEMA_PREDEFINITO].scura
+
+
+@pytest.mark.parametrize("nome", TEMI)
+def test_temi_con_colori_esadecimali(nome):
+    for colore in vars(TEMI[nome]).values():
+        assert colore.startswith("#") and len(colore) == 7
+        int(colore[1:], 16)
+
+
+# --- pezzi -----------------------------------------------------------------
+
+@pytest.mark.parametrize("simbolo", "KQRBNPkqrbnp")
+def test_pezzo_svg_occupa_tutto_il_riquadro(simbolo):
+    svg = pezzo_svg(chess.Piece.from_symbol(simbolo))
+    assert svg.startswith("<svg") and svg.endswith("</svg>")
+    # il rettangolo trasparente deve essere il primo elemento, subito dopo <svg ...>
+    apertura = svg.index(">") + 1
+    assert svg[apertura:].startswith('<rect x="0" y="0" width="45" height="45"')
+    assert "fill-opacity:0" in svg
+
+
+def test_pezzi_bianchi_e_neri_diversi():
+    bianco = pezzo_svg(chess.Piece(chess.KNIGHT, chess.WHITE))
+    nero = pezzo_svg(chess.Piece(chess.KNIGHT, chess.BLACK))
+    assert "white-knight" in bianco and "black-knight" in nero
 
 
 # --- lettura del PGN -------------------------------------------------------
@@ -58,12 +86,29 @@ def test_pgn_con_mossa_illegale():
         carica_partita("1. e4 e5 2. Ke3")
 
 
-def test_titolo_da_header():
-    assert titolo(partita("1. e4", White="Tal", Black="Botvinnik")) == "Tal – Botvinnik"
+def test_giocatori_da_header():
+    assert giocatori(partita("1. e4", White="Tal", Black="Botvinnik")) == ("Tal", "Botvinnik")
 
 
-def test_titolo_senza_header():
-    assert titolo(carica_partita("1. e4")) == "? – ?"
+def test_giocatori_senza_header():
+    assert giocatori(carica_partita("1. e4")) == ("?", "?")
+
+
+@pytest.mark.parametrize("headers, atteso", [
+    ({"Event": "Mondiale", "Date": "1960.05.07"}, "Mondiale · 1960"),
+    ({"Event": "Mondiale", "Date": "????.??.??"}, "Mondiale"),
+    ({"Date": "1851.06.21"}, "1851"),
+    ({}, ""),
+])
+def test_sottotitolo(headers, atteso):
+    assert sottotitolo(partita("1. e4", **headers)) == atteso
+
+
+@pytest.mark.parametrize("risultato, atteso", [
+    ("1-0", "Vince il Bianco"), ("0-1", "Vince il Nero"), ("1/2-1/2", "Patta"), ("*", ""),
+])
+def test_descrivi_risultato(risultato, atteso):
+    assert descrivi_risultato(risultato) == atteso
 
 
 # --- etichette -------------------------------------------------------------
@@ -84,7 +129,20 @@ def test_etichette_seguono_la_partita():
 
 def test_mossa_semplice():
     (m,) = piano("1. e4")
-    assert (m.da, m.a, m.catturata, m.torre, m.promozione) == (chess.E2, chess.E4, None, None, None)
+    assert (m.da, m.a, m.catturata, m.torre, m.promozione, m.scacco) == \
+        (chess.E2, chess.E4, None, None, None, None)
+
+
+def test_scacco_indica_la_casa_del_re():
+    m = piano("1. e4 d5 2. Bb5+")[-1]
+    assert m.scacco == chess.E8
+
+
+def test_scacco_al_bianco():
+    m = piano("1. f3 e5 2. g4 Qh4#")[-1]
+    assert m.scacco == chess.E1
+    assert m.etichetta == "2... Qh4#"
+
 
 
 def test_cattura():
